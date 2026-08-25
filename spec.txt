@@ -1,0 +1,221 @@
+# tpt-norma: Formally Verified AI Action & Guardrail Engine
+
+**Status:** Draft v2 / Phase 1 Initiation
+**Author:** TPT Solutions
+**Date:** August 20, 2026
+**License:** MIT OR Apache-2.0
+
+---
+
+## 1. Executive Summary
+
+`tpt-norma` is a pure-Rust, domain-agnostic, formally verified engine for bounding and validating AI agent actions. Unlike probabilistic guardrails, heuristic filters, or JSON-schema validators, `tpt-norma` treats AI tool-calling as a **formal state-transition problem**.
+
+By leveraging the `tpt-telos` agentic compiler and its self-contained Fourier-Motzkin QF_LRA solver, `tpt-norma` mathematically proves that any action proposed by an LLM or autonomous agent strictly conforms to predefined resource, temporal, and safety policies. It operates on a two-layer specification: an **ideal real-arithmetic policy model** and a **sound floating-point realization** that guarantees no "false allows" (catastrophic policy violations) can occur due to IEEE-754 rounding.
+
+**Note on scope:** the guarantees below hold under the assumptions in Section 8 (Threat Model). In particular, Phase 1 verifies a single-call, single-resource-dimension validator; it does not yet verify concurrent access to shared state or multi-dimensional constraint composition. Section 2 describes the target end-state architecture; Section 6 describes exactly what Phase 1 delivers.
+
+The end goal: `tpt-norma` becomes a standard for enterprise AI deployment, providing machine-checked certificates that an AI agent cannot exceed its authorized boundaries — built toward suitability for EU AI Act compliance evidence, SOC2 audits, and high-stakes algorithmic execution.
+
+---
+
+## 2. Target Industries & The Gap We Fill
+
+*The guarantees in this section describe the target architecture once `tpt-norma-runtime` and multi-dimensional policy composition are verified (see Sections 4 and 8). Phase 1 delivers the core stateful validator these guarantees will be built on top of — see Section 6.*
+
+`tpt-norma` is designed for environments where an AI agent "hallucinating" past a safety limit or resource cap results in catastrophic financial, physical, or regulatory failure.
+
+| Industry | Use Case | The Gap | The `tpt-norma` Guarantee (target architecture) |
+| :--- | :--- | :--- | :--- |
+| **Enterprise AI / Agentic Workflows** | LLM agents executing API calls, database queries, or internal tooling. | Heuristic guardrails and prompt engineering are probabilistic; an LLM can eventually be jailbroken or tricked into bypassing rate limits or accessing unauthorized data. | **Inviolable Policy Bounds:** Proves that the agent's proposed action intersects strictly with the allowed N-dimensional policy space, once `tpt-norma-runtime`'s FFI boundary is itself verified. |
+| **FinTech AI / Algorithmic Trading** | AI agents executing trades, transferring funds, or adjusting portfolio weights. | "Fat finger" AI errors or flawed chain-of-thought reasoning can result in unauthorized capital deployment or breached risk limits. | **Conservation of Capital:** Formally verifies that `proposed_delta <= max_risk_limit` and `current_exposure + proposed_delta <= max_capacity` with zero false-allow tolerance, assuming serialized (non-concurrent) validation — see Section 8. |
+| **Autonomous Robotics / Physical AI** | AI agents commanding robotic arms, drones, or AGVs in physical space. | An AI might propose a kinematic trajectory that exceeds joint velocity limits or physical workspace boundaries, causing hardware damage. | **Conservative Kinematic Denial:** Proves that the proposed physical delta is bounded by hardware limits. If f64 rounding creates ambiguity, the system defaults to a mathematically proven Deny. |
+| **Healthcare AI / Clinical Decision Support** | AI suggesting dosages, treatment plans, or diagnostic thresholds. | An AI might suggest a dosage that exceeds the maximum safe limit for a patient's weight/age due to context-window truncation. | **Absolute Medical Policy Enforcement:** Proves that the proposed clinical action strictly falls within the verified, bounded safe-harbor region defined by medical guidelines. |
+
+---
+
+## 3. Architectural Principles
+
+1. **Zero-Trust AI Output:** The LLM is treated as an untrusted, adversarial input source. Every proposed action is assumed to be malicious or erroneous until mathematically proven otherwise.
+2. **Conservative Denial (No False Allows):** In the event of floating-point ambiguity, boundary conditions, or unresolvable policy conflicts, `tpt-norma` will *always* deny the action. A "false denial" (annoying) is acceptable; a "false allow" (catastrophic) is mathematically impossible, subject to the assumptions in Section 8.
+3. **Two-Layer Soundness:** Policies are defined in ideal QF_LRA (exact rationals) and compiled to f64 with explicit, machine-checked error bounds (`EPSILON_ROUNDING`).
+4. **Domain Agnostic:** `tpt-norma` does not know what a "trade" or a "robot arm" is. It only understands N-dimensional resource deltas, state transitions, and linear policy bounds.
+5. **Leverage the Ecosystem:** Consumes `tpt-math` for bounded arithmetic and `tpt-formal` for audit-trail generation.
+
+---
+
+## 4. System Architecture (Crate Map)
+
+| Crate | Purpose | Existing TPT Dependencies | The `tpt-telos` Upgrade | Phase 1 Status |
+| :--- | :--- | :--- | :--- | :--- |
+| `tpt-norma-core` | **Core Engine.** Stateful action validation, policy intersection, and conservative denial logic. | `tpt-math` | Proves state-transition invariants and zero-false-allow capacity checks. | **In scope** — see Section 6. |
+| `tpt-norma-policy` | N-dimensional policy space definition (the "AABBs" of AI action) and DSL compilation. | *(New)* | Proves that policy definitions are internally consistent and non-contradictory. | Out of scope; single-dimension policy only in Phase 1. |
+| `tpt-norma-runtime` | The Rust/Go FFI bridge that intercepts LLM tool calls at runtime and enforces `tpt-norma-core`. | *(New)* | Proves the FFI boundary cannot be bypassed or corrupted by the host environment. | Out of scope. |
+| `tpt-norma-proof` | Proof-certificate assembly, mapping verification records to EU AI Act / SOC2 controls. | `tpt-formal` | Generates the compliance artifacts auditors actually consume. | First-draft certificate only (Section 7). |
+
+---
+
+## 5. The Verification Strategy
+
+### 5.1 The "No False Allow" Imperative
+In AI guardrails, a false positive (denying a valid action) is a degraded user experience. A false negative (allowing an invalid action) is a catastrophic failure.
+`tpt-norma`'s realization layer is explicitly optimized for **conservative denial**. The auto-derived `EPSILON_ROUNDING` is subtracted from the policy capacity limit during the f64 check. This intentionally sacrifices a microscopic fraction of the usable capacity to guarantee that IEEE-754 addition rounding can never cause the f64 implementation to "Allow" an action that the ideal QF_LRA math would "Deny."
+
+### 5.2 Compositional Policy Verification (target architecture)
+Complex AI policies (e.g., "Max $10k per day, but only $2k per hour, and never more than 5% of total portfolio") are decomposed into independent, orthogonal linear constraints. `tpt-telos` verifies each constraint independently, and a composition lemma proves that the intersection of these verified constraints forms a valid, non-contradictory policy space.
+
+**Scope caveat:** this composition argument assumes the constraints are genuinely orthogonal — i.e., evaluating one constraint has no side effect on the inputs of another. This holds for constraints over independent resource dimensions, but breaks down when a proposed action changes a quantity that a *different* constraint also depends on (e.g., a trade that is itself sized as a percentage of portfolio value, where the trade also changes portfolio value). The composition lemma and its independence precondition are not yet implemented; Phase 1 verifies a single constraint set only (Section 6). Multi-dimensional composition is targeted for Phase 1 Exit Criterion 4 (Section 8).
+
+---
+
+## 6. Phase 1 Proof of Concept: Verified Stateful Action Validation
+
+**Phase 1 Goal:** Implement and formally verify `validate_action` in `tpt-norma-core`, proving that a single AI agent's resource request, validated in isolation against a given system state, cannot violate capacity or rate limits, with absolute tolerance for IEEE-754 rounding edge cases.
+
+```rust
+// tpt-norma-core/src/action_validator.rs
+
+/// Represents an AI agent's proposed action (e.g., amount to transfer, records to query).
+pub struct ActionProposal {
+    pub resource_delta: f64,
+}
+
+/// Represents the current state of the system.
+pub struct SystemState {
+    pub current_load: f64,
+}
+
+/// Represents the policy bounds enforced on the agent.
+pub struct PolicyBounds {
+    pub max_capacity: f64,
+    pub max_delta_per_call: f64,
+}
+
+/// The verifier's decision.
+pub enum Decision {
+    Allow { new_load: f64 },
+    Deny,
+}
+
+/// # Scope note
+/// All contracts assume finite, non-NaN inputs. Malformed LLM outputs (NaN, Infinity)
+/// are rejected upstream by the JSON schema parser before reaching this function.
+///
+/// This function validates a single proposal against a single snapshot of `SystemState`.
+/// It does not itself guarantee atomicity across concurrent calls — see Section 8
+/// (Threat Model & Assumptions) for the serialization requirement this places on callers.
+
+/// Formally verified stateful action validator.
+///
+/// # tpt-telos Contracts — Ideal Layer (QF_LRA, exact rationals)
+/// requires:
+///   policy.max_capacity >= 0.0 && policy.max_delta_per_call >= 0.0
+/// requires:
+///   state.current_load >= 0.0 && state.current_load <= policy.max_capacity
+/// ensures: // State preservation on denial (pure function, implicit)
+/// ensures: // Capacity invariant on allow
+///   if let Decision::Allow { new_load } = result {
+///     new_load == state.current_load + proposal.resource_delta &&
+///     new_load <= policy.max_capacity
+///   }
+/// ensures: // Rate limit & non-negativity invariant on allow
+///   if let Decision::Allow { new_load } = result {
+///     proposal.resource_delta <= policy.max_delta_per_call &&
+///     proposal.resource_delta >= 0.0
+///   }
+///
+/// # tpt-telos Contracts — Realization Layer (f64, auto-derived ε)
+/// ensures: // Bounded numerical error on allow
+///   let ideal = symbolic_evaluate_ideal(state, proposal, policy);
+///   (matches!(ideal, Decision::Allow { .. }) && matches!(result, Decision::Allow { .. })) ==>
+///     |result.new_load - ideal.new_load| <= EPSILON_LOAD
+/// ensures: // CONSERVATIVE DENIAL: NO FALSE ALLOWS
+///   let ideal = symbolic_evaluate_ideal(state, proposal, policy); // re-bound: independent clause scope
+///   matches!(ideal, Decision::Deny) ==> matches!(result, Decision::Deny)
+///   // Achieved by subtracting EPSILON_ROUNDING from max_capacity during the f64 check.
+///   // This intentionally sacrifices the top EPSILON_ROUNDING of capacity to guarantee
+///   // that f64 addition rounding can never cause a false allow.
+///   // Note: EPSILON_LOAD (numerical-error bound) and EPSILON_ROUNDING (capacity
+///   // safety margin) are independently derived constants and are not interchangeable —
+///   // see symbolic_evaluate_ideal for their respective derivations.
+pub fn validate_action(
+    state: SystemState,
+    proposal: ActionProposal,
+    policy: PolicyBounds,
+) -> Decision {
+    // 1. Non-negativity check
+    if proposal.resource_delta < 0.0 {
+        return Decision::Deny;
+    }
+
+    // 2. Rate limit check
+    if proposal.resource_delta > policy.max_delta_per_call {
+        return Decision::Deny;
+    }
+
+    // 3. Capacity check (Conservative for f64)
+    let projected_load = state.current_load + proposal.resource_delta;
+
+    // Derive the maximum possible rounding error for this specific addition.
+    // We use this to shrink the effective capacity, ensuring no false allows.
+    let epsilon_rounding = (state.current_load.abs() + proposal.resource_delta.abs()) * f64::EPSILON;
+
+    // If the projected load exceeds the capacity minus the rounding error, we MUST deny.
+    // This prevents the scenario where ideal math says > max (Deny), but f64 rounds
+    // down to <= max (Allow).
+    if projected_load > policy.max_capacity - epsilon_rounding {
+        return Decision::Deny;
+    }
+
+    Decision::Allow { new_load: projected_load }
+}
+```
+
+### 6.1 Revision History for This Contract
+
+| Change | Why It Was Necessary |
+| :--- | :--- |
+| **Conservative capacity check (`- epsilon_rounding`)** | An intermediate draft used a naive `projected_load > policy.max_capacity` check. Adversarial review identified a catastrophic edge case: if `current_load + delta` mathematically exceeds `max_capacity` by a microscopic amount, IEEE-754 addition might round the result down to exactly `max_capacity`, causing a "false allow." Subtracting `epsilon_rounding` from the capacity limit intentionally sacrifices a microscopic fraction of usable capacity to mathematically guarantee that a false allow is impossible. |
+| **Independent `let ideal = ...` binding** | Contract clauses are independent predicates; a binding made in one does not carry into the next, so each clause re-derives `ideal` rather than assuming shared scope. |
+| **Explicit NaN/finiteness scope note** | States outright that malformed LLM outputs are out of contract scope (handled upstream by the schema parser), rather than leaving that boundary for a reader to infer. |
+| **`EPSILON_LOAD` vs. `EPSILON_ROUNDING` clarification** *(new in this revision)* | Reviewers could reasonably assume these two epsilon constants were the same value serving two purposes. Added an explicit note that they are independently derived — `EPSILON_LOAD` bounds numerical drift on the reported `new_load`; `EPSILON_ROUNDING` is a capacity safety margin used only in the denial decision. Conflating them would either overstate numerical precision or understate the safety margin. |
+| **Single-call / non-atomicity scope note** *(new in this revision)* | Adversarial review flagged that "formally verified, no false allows" could be misread as a claim about production safety under concurrent access. Added an explicit note that this function validates one proposal against one state snapshot, and that atomicity across concurrent calls is a caller obligation — see Section 8. |
+
+---
+
+## 7. Compliance & Regulatory Roadmap (EU AI Act / SOC2)
+
+Formal proofs are strong evidence for compliance but require mapping to specific regulatory controls, and that mapping is itself a multi-phase engineering effort — not a one-time output of Phase 1. `tpt-norma` treats compliance as an explicit engineering track:
+
+| Phase | Deliverable | Regulatory Objective Addressed |
+| :--- | :--- | :--- |
+| 1 | Proof Certificate format finalized; `tpt-norma-proof` crate ships a **first draft** certificate for `validate_action` only. | Establishes traceable, machine-readable verification records for AI action boundaries. *Not yet a compliance claim — see caveat below.* |
+| 2 | Mapping of `tpt-norma` Proof Certificates to EU AI Act Article 15 (Accuracy & Robustness) and SOC2 CC6.1 (Logical Access Security). | Converts abstract math proofs into auditor-ready compliance evidence. |
+| 3 | Independent audit of the "Conservative Denial" f64 rounding argument by a third-party AI safety firm. | Confirms the zero-false-allow claim holds up under external scrutiny. |
+| 4 | Reference submission package built against the Phase 1 action validator, as a template for enterprise customers' own AI governance submissions. | Converts the abstract claim "compliant" into a concrete, reusable artifact. |
+
+**Caveat:** Phase 1's "first-draft Proof Certificate mapped to Article 15" is an illustrative artifact demonstrating the certificate format and workflow. It is not, by itself, a compliance claim, does not cover concurrent-access or multi-dimensional-policy scenarios (Section 8), and should not be represented to customers or auditors as a completed Article 15 mapping until Phase 2 is delivered and Phase 3's independent audit has occurred.
+
+---
+
+## 8. Threat Model & Assumptions
+
+The guarantees in this document hold only under the following assumptions. These are the conditions a deploying team must satisfy for the "no false allow" claim to apply to their system, and they define the boundary between what Phase 1 proves and what the target architecture (Section 2) aims to prove.
+
+1. **Finite, non-NaN inputs.** `validate_action` assumes `ActionProposal` and `SystemState` fields are finite and non-NaN. Enforcing this is an upstream obligation of the JSON schema parser, not something this function checks or proves.
+2. **Serialized validation per resource.** `validate_action` proves correctness for a *single call* against a *single snapshot* of `SystemState`. It does not prove atomicity. If two proposals against the same resource are validated concurrently (e.g., two parallel LLM tool calls both reading `current_load = X` before either write lands), both may independently receive `Decision::Allow` in a way that, applied together, violates `max_capacity` — even though each individual call was correctly verified. **Deploying teams must serialize validation-and-commit per resource dimension** (e.g., via a mutex, actor, or single-writer queue) for the proven guarantee to hold in production. This is not yet enforced or verified by `tpt-norma-core` itself; it is a caller obligation until `tpt-norma-runtime` (Section 4) is built and verified to close this gap at the FFI boundary.
+3. **Single resource dimension.** Phase 1 verifies one `resource_delta` against one `current_load`/`max_capacity` pair. Real policies with multiple interacting dimensions (e.g., "5% of portfolio AND $2k/hour") require the compositional argument in Section 5.2, which assumes dimension orthogonality — an assumption not yet formally verified. Composing constraints that affect each other's inputs (non-orthogonal constraints) is explicitly out of scope until Exit Criterion 4 is met.
+4. **Trusted policy inputs.** `PolicyBounds` and `SystemState` are assumed to be supplied by a trusted configuration/state layer, not by the LLM. Only `ActionProposal` is treated as adversarial input.
+5. **No enforcement-bypass guarantee yet.** Nothing in Phase 1 prevents a compromised or misconfigured host application from simply not calling `validate_action`, or from ignoring its `Deny` result. That guarantee is the explicit purpose of `tpt-norma-runtime` (Section 4), which is out of scope for Phase 1.
+
+---
+
+## 9. Phase 1 Exit Criteria
+
+Phase 1 is complete when all of the following hold:
+
+1. `validate_action` passes both ideal-layer and realization-layer proofs as specified in Section 6, specifically including the "Conservative Denial" postcondition.
+2. The FM-elimination scalability benchmark is run against the multi-resource allocator function (Exit Criterion 4) using a synthetic 10-dimensional policy space, proving tractability for complex, multi-constraint AI guardrails. **Tractability target:** median validation latency under **10ms** and worst-case (p99) latency under **50ms** per call on reference hardware (spec TBD), making this criterion objectively falsifiable rather than qualitative.
+3. A first-draft Proof Certificate is generated and mapped to the EU AI Act Article 15 objectives, explicitly labeled as illustrative per the Section 7 caveat.
+4. The two-layer soundness mechanism in `tpt-telos` is demonstrated on at least two functions beyond `validate_action` (e.g., a temporal rate-limiter and a multi-resource allocator), and the multi-resource allocator's proof explicitly addresses the constraint-orthogonality assumption from Section 5.2.
+5. *(New)* A written threat-model document (Section 8 of this draft, or its successor) is reviewed and signed off, so that "no false allows" is never cited externally without its accompanying scope.
