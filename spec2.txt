@@ -1,0 +1,82 @@
+Design Update Spec: tpt-norma (Runtime Policy & Action Bounds)
+This document is formatted to be dropped directly into your tpt-norma/spec.txt or as a standalone design-doc.md update. It implements the P0 priorities from the audit.
+Design Update: Runtime Policy Engine and Action Bounds
+Repository: tpt-norma
+Priority: P0 — Foundational
+Status: Draft / Pending Implementation
+1. Context & Objective
+tpt-norma currently targets verified bounds on AI-agent actions. This update extends tpt-norma into a reusable, deterministic runtime policy engine. It serves as the primary "Proposer-Verifier" boundary, ensuring that no AI-proposed action is executed unless it is logically, resource-wise, and state-wise authorized.
+Crucially, this update introduces three-valued logic (Allow, Deny, Indeterminate) and strict fail-closed semantics to handle the probabilistic nature of AI inputs and the reality of incomplete runtime state.
+2. Workspace & Crate Layout
+If the existing workspace lacks these boundaries, introduce the following crate separation to maintain a small trusted core:
+Crate
+Responsibility
+tpt-norma-core
+Policy types, constraints, decision outcomes, evaluation context, and canonical action envelope integration.
+tpt-norma-eval
+Deterministic, bounded policy evaluation logic.
+tpt-norma-solver
+Adapter to tpt-solver for constraints requiring SMT/certificate checking.
+tpt-norma-runtime
+Current-state validation, snapshot freshness checks, and the action-authorization lifecycle.
+tpt-norma-audit
+Optional integration adapter to emit tpt-concord evidence objects.
+3. Core Interface Additions
+The following Rust API shapes define the boundary. (Note: Use ecosystem shared types from tpt-uir/tpt-primitives where they already exist).
+
+/// The only valid outcomes of a policy evaluation.
+pub enum Decision {
+    /// The action is proven safe against the provided state and policy.
+    Allow { evidence: DecisionEvidence },
+    /// The action is proven to violate a constraint.
+    Deny { violations: Vec<Violation> },
+    /// Safety cannot be proven (e.g., missing state, solver timeout, inconclusive).
+    /// MUST be treated as a denial by the executor.
+    Indeterminate { reason: EvaluationFailure },
+}
+
+pub struct ActionRequest {
+    pub action_id: ActionId,
+    pub actor: ActorId,
+    pub resource: ResourceId,
+    pub expected_state_version: StateVersion,
+    // Arguments must be strictly typed and canonicalized.
+    pub arguments: CanonicalBytes, 
+}
+
+pub trait PolicyEvaluator {
+    /// Evaluates the request against a specific state snapshot.
+    /// MUST NOT have side effects. MUST be strictly bounded in execution time/fuel.
+    fn evaluate(
+        &self,
+        request: &ActionRequest,
+        snapshot: &StateSnapshot,
+    ) -> Decision;
+}
+
+4. Strict Invariants & Safety Guarantees
+The implementation must enforce the following invariants. Violations of these invariants are considered critical bugs.
+Fail-Closed Defaults: Missing, stale, malformed, or unverifiable state must never silently produce an Allow decision. It must result in Indeterminate or Deny.
+Three-Valued Outcomes: The system must distinguish between a proven denial and an inability to determine safety.
+Bounded Execution: Every policy evaluation must have explicit, hard limits for CPU fuel, memory allocation, solver work, and wall-clock deadline.
+Snapshot Freshness: Each decision must be cryptographically or strictly bound to a specific StateVersion.
+Execution Binding: The resulting DecisionEvidence must be bound to the exact action_id, actor, resource, and state_version. It cannot be reused for a modified action.
+Independent Policy Provenance: The decision must record the exact policy version and verifier identity that justified it.
+No Implicit Approval on Timeout: A timeout, panic, resource exhaustion, or tpt-solver Inconclusive result must never be interpreted as Allow.
+5. Acceptance Tests (Definition of Done)
+The following negative and positive tests must pass in CI before this update is considered complete:
+Positive: A valid action against a valid, current state returns Allow with complete evidence.
+Negative (Violation): An action that violates a defined policy constraint returns Deny with specific Violation details.
+Negative (Missing State): An action evaluated against a snapshot missing required fields returns Indeterminate (not Allow).
+Negative (Stale State): An action evaluated against an outdated StateVersion returns Indeterminate or Deny.
+Negative (Timeout): Forcing the evaluator to hit its CPU/time limit results in Indeterminate, never Allow.
+Negative (Mutation): An Allow decision generated for Action A is rejected if the executor attempts to apply it to Action B (even if B is a slight modification of A).
+Negative (State Drift): If the state version changes between the time evaluate() is called and the time the executor attempts to commit, the executor rejects the stale DecisionEvidence.
+6. Domain-Specific Caveats (Healthcare & Aviation)
+Healthcare (tpt-healthcare-nz): tpt-norma is an engineering enforcement component, not an autonomous clinical decision-maker. It enforces hard bounds (e.g., maximum dosage limits, allergy checks). Clinical judgment, data quality assurance, and human oversight remain outside the trusted boundary of tpt-norma and must be handled by the application layer.
+Aviation (tpt-flight-control): tpt-norma is used for mission planning and macro-state transitions. It must not be placed in the hard real-time (e.g., 100Hz) low-level control loop.
+7. Dependencies & Contracts
+Requires: tpt-uir (for the Canonical Action Envelope and StateSnapshot definitions).
+Requires: tpt-solver (for certificate checking on complex constraints).
+Provides to: tpt-writ (which will consume the Decision and DecisionEvidence to gate actual tool execution).
+Provides to: tpt-concord (via tpt-norma-audit, to record the decision lifecycle).
