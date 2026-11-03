@@ -28,7 +28,7 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::time::Duration;
 
-use tpt_norma_core::{check_action, ActionProposal, PolicyBounds, SystemState};
+use tpt_norma_core::{check_action, ActionProposal, PolicyBounds, Rejection, SystemState};
 use tpt_norma_eval::{
     ActionId, ActionRequest, ActorId, CanonicalBytes, CoreEvaluator, ResourceId, StateVersion,
 };
@@ -86,6 +86,8 @@ pub unsafe extern "C" fn tn_validate_action(
                 }
                 TN_ALLOW
             }
+            // A NaN or infinite input is not a proven violation, so it is indeterminate.
+            Err(Rejection::NonFinite) => TN_INDETERMINATE,
             Err(_) => TN_DENY,
         }
     })
@@ -164,7 +166,9 @@ pub unsafe extern "C" fn tn_gate_admit(
         match gate.inner.submit(&request, |_| ()) {
             Ok(()) => TN_ALLOW,
             Err(Refusal::Denied { .. }) => TN_DENY,
-            Err(Refusal::Indeterminate { .. }) | Err(Refusal::Commit(_)) | Err(Refusal::Audit { .. }) => TN_INDETERMINATE,
+            Err(Refusal::Indeterminate { .. })
+            | Err(Refusal::Commit(_))
+            | Err(Refusal::Audit { .. }) => TN_INDETERMINATE,
         }
     })
 }
@@ -211,6 +215,74 @@ fn c_str(ptr: *const std::ffi::c_char) -> Option<String> {
     bytes.to_str().ok().map(str::to_owned)
 }
 
+/// [`tn_validate_action`] with each `f64` passed as its IEEE-754 bit pattern.
+///
+/// Hosts that cannot pass floating-point arguments directly, such as Go's `syscall` on Windows,
+/// use this form. Bits are `f64::to_bits` in little-endian u64 order. It behaves exactly as the
+/// `f64` version.
+///
+/// # Safety
+/// As [`tn_validate_action`].
+#[no_mangle]
+pub unsafe extern "C" fn tn_validate_action_bits(
+    load_bits: u64,
+    delta_bits: u64,
+    max_capacity_bits: u64,
+    max_delta_per_call_bits: u64,
+    out_new_load: *mut f64,
+) -> i32 {
+    // SAFETY: forwarded under the same contract as the caller of this function.
+    unsafe {
+        tn_validate_action(
+            f64::from_bits(load_bits),
+            f64::from_bits(delta_bits),
+            f64::from_bits(max_capacity_bits),
+            f64::from_bits(max_delta_per_call_bits),
+            out_new_load,
+        )
+    }
+}
+
+/// [`tn_gate_new`] with each `f64` passed as its IEEE-754 bit pattern. See
+/// [`tn_validate_action_bits`].
+#[no_mangle]
+pub extern "C" fn tn_gate_new_bits(
+    load_bits: u64,
+    max_capacity_bits: u64,
+    max_delta_per_call_bits: u64,
+) -> *mut TnGate {
+    tn_gate_new(
+        f64::from_bits(load_bits),
+        f64::from_bits(max_capacity_bits),
+        f64::from_bits(max_delta_per_call_bits),
+    )
+}
+
+/// [`tn_gate_admit`] with the delta passed as its IEEE-754 bit pattern. See
+/// [`tn_validate_action_bits`].
+///
+/// # Safety
+/// As [`tn_gate_admit`].
+#[no_mangle]
+pub unsafe extern "C" fn tn_gate_admit_bits(
+    gate: *const TnGate,
+    action: *const std::ffi::c_char,
+    resource: *const std::ffi::c_char,
+    delta_bits: u64,
+    expected_version: u64,
+) -> i32 {
+    // SAFETY: forwarded under the same contract as the caller of this function.
+    unsafe {
+        tn_gate_admit(
+            gate,
+            action,
+            resource,
+            f64::from_bits(delta_bits),
+            expected_version,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,7 +318,7 @@ mod tests {
     fn validate_refuses_non_finite_input() {
         // SAFETY: a null output pointer is allowed by the contract.
         let code = unsafe { tn_validate_action(f64::NAN, 1.0, 10.0, 5.0, ptr::null_mut()) };
-        assert_eq!(code, TN_DENY);
+        assert_eq!(code, TN_INDETERMINATE);
     }
 
     #[test]

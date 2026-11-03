@@ -24,9 +24,21 @@ extern "C" {
 typedef struct TnGate TnGate;
 
 /* Validate one proposal against one state. No state is changed.
- * out_new_load may be NULL. On TN_ALLOW it receives the new load. */
+ * out_new_load may be NULL. On TN_ALLOW it receives the new load. A non-finite input gives
+ * TN_INDETERMINATE, not TN_DENY, because it is not a proven violation. */
 int32_t tn_validate_action(double load, double delta, double max_capacity,
                            double max_delta_per_call, double *out_new_load);
+
+/* The same functions with each double passed as its IEEE-754 bit pattern (f64::to_bits, as a
+ * uint64_t). Use these from hosts that cannot pass floating-point arguments directly, such as
+ * Go's syscall on Windows. They behave exactly as the double versions. */
+int32_t tn_validate_action_bits(uint64_t load_bits, uint64_t delta_bits,
+                                uint64_t max_capacity_bits, uint64_t max_delta_per_call_bits,
+                                double *out_new_load);
+TnGate *tn_gate_new_bits(uint64_t load_bits, uint64_t max_capacity_bits,
+                         uint64_t max_delta_per_call_bits);
+int32_t tn_gate_admit_bits(const TnGate *gate, const char *action, const char *resource,
+                           uint64_t delta_bits, uint64_t expected_version);
 
 /* Create a gate for one resource. Returns NULL on failure.
  * Release with tn_gate_free exactly once. */

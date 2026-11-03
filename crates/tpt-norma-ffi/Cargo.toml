@@ -11,8 +11,9 @@ repository.workspace = true
 publish = false
 
 [lib]
-# staticlib for C hosts; rlib so the Rust tests can call the exported functions.
-crate-type = ["staticlib", "rlib"]
+# staticlib and cdylib for C hosts (the cdylib is what the Go binding loads); rlib so the Rust
+# tests can call the exported functions.
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
 tpt-norma-core = { workspace = true }
