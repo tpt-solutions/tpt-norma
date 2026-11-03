@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-solver"
 description = "Certificate checking of policy decisions through tpt-solver (spec2 §4, solver adapter)."
+readme = "README.md"
+keywords = ["smt", "certificate", "farkas", "linear-arithmetic", "verification"]
+categories = ["mathematics", "science"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
