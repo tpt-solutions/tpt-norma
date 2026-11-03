@@ -133,7 +133,7 @@ pub fn validator_draft() -> Certificate {
                 status: Status::Evidenced,
             },
             Evidence {
-                description: "machine-checked ideal-layer proof (.telos twin)".into(),
+                description: "machine-checked ideal-layer proof (exact certificates in tpt-norma-solver; realization layer still open)".into(),
                 status: Status::Open,
             },
             Evidence {

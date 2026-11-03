@@ -25,9 +25,10 @@ The "no false allow" claim covers `tpt-norma-core::validate_action` and `symboli
 ## Limits that are not yet enforced
 
 - **Wall-clock deadline is post-hoc.** `Guarded` checks elapsed time after the evaluator returns. It cannot interrupt a call that is still running. A hard deadline needs a separate thread or process.
-- **No fuel or memory limits.** The engine has no CPU-fuel or allocation budget. The core check is O(1), so this is low risk today. It becomes a real requirement with `tpt-norma-solver`.
-- **No solver integration yet.** Constraints requiring SMT or certificate checking are not handled, so no `Inconclusive` path exists.
-- **Persistence and audit.** The commit log is in memory. Durable, tamper-evident audit records (`tpt-norma-audit`) are not built.
+- **No fuel or memory limits in the evaluator.** The engine has no CPU-fuel or allocation budget. The core check is O(1). The solver's own resource budget is handled: `Unknown` becomes `Indeterminate(ResourceExhausted)` (D17).
+- **Guarded stack is the only constructor (D18).** `Gate::new` takes a `CoreEvaluator` and a deadline, and always builds `CertifiedEvaluator<Guarded<CoreEvaluator>>`. A host cannot build a `Gate` around a bare evaluator. The deadline is still post-hoc (see above), and the solver check runs on every `Allow`, which adds cost that has not been measured end to end.
+- **Shadow mode is not enforcement.** In shadow mode the host calls `Gate::admit` and does not run the tool, but it can still run the tool anyway. Then nothing enforces that request. Shadow admissions commit to the shadow ledger, so the budget counts them.
+- **Audit is in memory and not anchored.** `Gate` keeps an `AuditLog` (`tpt-norma-audit`). Nothing persists it, and the head digest is not anchored outside the process, so the chain is not tamper-evident against someone who can rewrite the whole log.
 
 ## Verification status
 

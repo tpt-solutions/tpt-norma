@@ -22,7 +22,7 @@ LLM is treated as untrusted; every proposal is denied unless it is proven safe.
 
 ```text
 tpt-math          bounded / exact arithmetic
-tpt-telos         verification of the ideal-layer contracts
+tpt-norma-linear  exact linear constraints and contradiction check (internal, D19)
 tpt-solver        SMT / certificate checking        (planned adapter)
 tpt-uir           shared intermediate representation (planned)
         ↑
@@ -39,7 +39,7 @@ tpt-norma-core    validate_action: non-negativity, rate limit, conservative capa
 | `tpt-norma-solver` | Implemented | Certifies decisions through `tpt-solver`: a claimed `Allow` must be satisfiable with an accepted model, and a `Deny` is certified when UNSAT |
 | `tpt-norma-audit` | Implemented | Hash-chained, tamper-evident log of the decision lifecycle (internal format; `tpt-concord` is not checked out) |
 | `tpt-norma-proof` | Implemented (draft) | Certificate format pinned to source digests, and an illustrative first draft for `validate_action` |
-| `tpt-norma-policy` | Implemented | Text DSL for N-dimensional boxes and linear rules, with a consistency check through `tpt-telos-sdk`'s `check_contradictions` |
+| `tpt-norma-policy` | Implemented | Text DSL for N-dimensional boxes and linear rules, with a consistency check through `tpt-norma-linear`'s `check_contradictions` |
 | `tpt-norma-ffi` | Implemented (Rust side) | C ABI over the validator and shared gate, with a hand-written header. The Go bridge and the C-host compile test are not built |
 
 ### Scope

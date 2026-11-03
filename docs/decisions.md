@@ -90,7 +90,7 @@ Records the choices made for the open questions in todo Phase 2b. Each entry is 
 
 **Decision:** the policy DSL takes integer bounds and coefficients.
 
-**Why:** `tpt-telos-ir` works over `i64`. A fixed-point scale (for example micro-units) is the caller's job.
+**Why:** `tpt-norma-linear` works over `i64` (D19). A fixed-point scale (for example micro-units) is the caller's job.
 
 ## D15. Shared gate holds the lock across admit, not across the tool
 
@@ -104,6 +104,34 @@ Records the choices made for the open questions in todo Phase 2b. Each entry is 
 
 **Why:** this is the margin working as designed (an exact match is a deliberate false denial), not a bug.
 
+## D17. Solver budget exhaustion is its own failure
+
+**Decision:** when `tpt-solver` returns `Unknown` (its resource budget ran out), the adapter reports `Indeterminate(ResourceExhausted)`. Other unchecked answers stay `Indeterminate(SolverInconclusive)`.
+
+**Why:** the two need different handling. Exhaustion means "try a smaller problem or a bigger budget". Inconclusive means the answer failed the kernel check.
+
+**Limit:** with the current ground rows, `Unknown` is not reachable from `certify`. The mapping is covered by `classify` unit tests, not by an end-to-end case. Evaluator fuel and memory limits are still not enforced (D6).
+
+## D18. Guarded stack is the only gate constructor; shadow mode admits without running the tool
+
+**Decision:** `Gate::new(policy, store, deadline)` takes a `CoreEvaluator` and builds `CertifiedEvaluator<Guarded<CoreEvaluator>>`. No other constructor is public. Shadow mode is `Gate::admit` with the host not running the tool. Admissions still commit.
+
+**Why:** a pilot built on a bare evaluator would run without the panic, deadline, evidence and solver checks, and nothing would flag it. Making the composition the only path removes that choice. Shadow mode has to count calls the way enforcement would. An earlier version made observation non-committing, so a shadow budget never ran out. That version was removed.
+
+**Limit:** shadow mode protects nothing. A host that runs the tool anyway has no enforcement for that request. The shadow ledger models the enforced world only if the host would have followed the decisions. The audit log records each admission as `Committed`, so the shadow budget can be read back from it.
+
+**Revisit when:** the solver check's cost is measured end to end. If it is too high for the pilot's latency budget, the solver stage may need to move to an asynchronous audit step.
+
+## D19. Internal linear checker replaces tpt-telos
+
+**Decision:** the policy consistency check runs on `tpt-norma-linear`, an internal exact Fourier–Motzkin checker over rationals. The `tpt-telos-ir`, `tpt-telos-sdk` and `tpt-telos-parser` dependencies are removed. The `.telos` files stay as contract text. No code runs them through `tpt-telos`.
+
+**Why:** `tpt-telos` has no float support, and its verifier passes false postconditions (`docs/telos-verifier-issue.md`). Its only runtime use here was the contradiction check, which is small enough to reproduce exactly.
+
+**Limit:** the check decides over the rationals. "Unsatisfiable" is sound for integer policies. "Satisfiable" is not an integer witness, so an integer-only policy can be empty and still pass. The elimination gives up with "undecided" past 10,000 rows. Coefficients use plain `i64` arithmetic, so a huge policy value can overflow.
+
+**Revisit when:** the realization-layer rounding proof needs float reasoning. That work goes in `tpt-norma-linear` or the solver, not in `tpt-telos`.
+
 ## Deferred
 
 - **`tpt-concord` evidence:** not checked out. `tpt-norma-audit` uses an internal format (D10) until it is.
@@ -111,4 +139,4 @@ Records the choices made for the open questions in todo Phase 2b. Each entry is 
 - **Phase 5, Go bridge and C-host compile test:** the Rust C ABI exists. A Go or C host is not built.
 - **Phase 5, FFI boundary proof:** not provable as stated. `THREAT_MODEL.md` records what the bridge does and does not enforce.
 - **`tpt-formal` audit-trail crate:** no crate in that repo is clearly the audit trail. Needs a choice from the maintainer.
-- **`.telos` ideal-layer proof:** blocked on the `old()` soundness problem described in `THREAT_MODEL.md`.
+- **`.telos` ideal-layer proof:** the `.telos` files are not run through `tpt-telos`. The `ensures` clauses are checked by `tpt-norma-solver` (exact certificates), and the `telos` text is documentation only. See D19.
