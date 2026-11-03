@@ -1,0 +1,26 @@
+name: License headers
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  spdx-header:
+    name: Every Rust source has the TPT copyright and SPDX header
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check headers
+        run: |
+          set -euo pipefail
+          status=0
+          while IFS= read -r file; do
+            if ! head -n 2 "$file" | grep -qx '// Copyright (c) TPT Solutions' \
+              || ! head -n 2 "$file" | grep -qx '// SPDX-License-Identifier: MIT OR Apache-2.0'; then
+              echo "::error file=$file::missing TPT copyright / SPDX header"
+              status=1
+            fi
+          done < <(git ls-files '*.rs')
+          exit "$status"
