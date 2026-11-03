@@ -1,0 +1,17 @@
+[package]
+name = "tpt-norma-eval"
+description = "Three-valued policy evaluation (Allow / Deny / Indeterminate) over tpt-norma-core (spec2 §3-4)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Depends on tpt-norma-core, which is itself unpublished (sibling path dependencies).
+publish = false
+
+[dependencies]
+tpt-norma-core = { workspace = true }
+
+[lints]
+workspace = true
