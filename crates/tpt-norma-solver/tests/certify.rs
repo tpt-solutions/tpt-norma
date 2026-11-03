@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use proptest::prelude::*;
-use tpt_norma_core::{validate_action, ActionProposal, Decision as CoreDecision, PolicyBounds, SystemState};
+use tpt_norma_core::{
+    validate_action, ActionProposal, Decision as CoreDecision, PolicyBounds, SystemState,
+};
 use tpt_norma_eval::{
     ActionId, ActionRequest, ActorId, CanonicalBytes, CoreEvaluator, Decision, EvaluationFailure,
     PolicyEvaluator, ResourceId, StateSnapshot, StateVersion,
 };
-use tpt_norma_solver::{certify, CertifiedEvaluator, Certification};
+use tpt_norma_solver::{certify, Certification, CertifiedEvaluator};
 
 fn policy(max_capacity: f64, max_delta_per_call: f64) -> PolicyBounds {
     PolicyBounds {
@@ -35,43 +37,70 @@ fn snapshot(load: f64) -> StateSnapshot {
 
 #[test]
 fn allow_within_capacity_is_verified() {
-    assert_eq!(certify(2.0, 3.0, policy(10.0, 5.0), Some(5.0)), Certification::Verified);
+    assert_eq!(
+        certify(2.0, 3.0, policy(10.0, 5.0), Some(5.0)),
+        Certification::Verified
+    );
 }
 
 #[test]
 fn allow_over_capacity_is_contradicted() {
     // A claimed Allow whose exact sum exceeds capacity: the solver refutes it.
-    assert_eq!(certify(9.0, 4.0, policy(10.0, 5.0), Some(13.0)), Certification::Contradicted);
+    assert_eq!(
+        certify(9.0, 4.0, policy(10.0, 5.0), Some(13.0)),
+        Certification::Contradicted
+    );
 }
 
 #[test]
 fn allow_with_new_load_off_by_more_than_the_error_bound_is_contradicted() {
-    assert_eq!(certify(2.0, 3.0, policy(10.0, 5.0), Some(5.5)), Certification::Contradicted);
+    assert_eq!(
+        certify(2.0, 3.0, policy(10.0, 5.0), Some(5.5)),
+        Certification::Contradicted
+    );
 }
 
 #[test]
 fn allow_with_new_load_within_the_error_bound_is_verified() {
     // One ulp away from the exact sum is inside EPSILON * (|load| + |delta|).
     let claim = f64::from_bits(5.0f64.to_bits() + 1);
-    assert_eq!(certify(2.0, 3.0, policy(10.0, 5.0), Some(claim)), Certification::Verified);
+    assert_eq!(
+        certify(2.0, 3.0, policy(10.0, 5.0), Some(claim)),
+        Certification::Verified
+    );
 }
 
 #[test]
 fn deny_for_a_real_violation_is_certified() {
-    assert_eq!(certify(0.0, 6.0, policy(100.0, 5.0), None), Certification::CertifiedDenial);
-    assert_eq!(certify(9.0, 4.0, policy(10.0, 5.0), None), Certification::CertifiedDenial);
+    assert_eq!(
+        certify(0.0, 6.0, policy(100.0, 5.0), None),
+        Certification::CertifiedDenial
+    );
+    assert_eq!(
+        certify(9.0, 4.0, policy(10.0, 5.0), None),
+        Certification::CertifiedDenial
+    );
 }
 
 #[test]
 fn deny_that_the_ideal_layer_allows_is_a_conservative_denial() {
     // Exact sum 10 equals capacity 10, which the ideal layer allows. The f64 check denies.
-    assert_eq!(certify(5.0, 5.0, policy(10.0, 10.0), None), Certification::ConservativeDenial);
+    assert_eq!(
+        certify(5.0, 5.0, policy(10.0, 10.0), None),
+        Certification::ConservativeDenial
+    );
 }
 
 #[test]
 fn values_outside_the_exact_range_are_inconclusive() {
-    assert_eq!(certify(1e-300, 1.0, policy(10.0, 5.0), Some(1.0)), Certification::Inconclusive);
-    assert_eq!(certify(1e300, 1.0, policy(1e300, 5.0), Some(1e300)), Certification::Inconclusive);
+    assert_eq!(
+        certify(1e-300, 1.0, policy(10.0, 5.0), Some(1.0)),
+        Certification::Inconclusive
+    );
+    assert_eq!(
+        certify(1e300, 1.0, policy(1e300, 5.0), Some(1e300)),
+        Certification::Inconclusive
+    );
 }
 
 struct Lying;

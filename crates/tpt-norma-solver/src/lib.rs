@@ -16,20 +16,23 @@
 //! `tpt-solver`'s rationals, is `Inconclusive` (or `Contradicted` for a refuted `Allow`).
 //! Neither is ever read as `Allow`.
 
-use tpt_norma_core::PolicyBounds;
+pub mod implication;
+
+use tpt_math_exact::BigRational;
+use tpt_norma_core::{
+    symbolic_evaluate_ideal, ActionProposal, IdealDecision, PolicyBounds, SystemState,
+};
 use tpt_norma_eval::{ActionRequest, Decision, EvaluationFailure, PolicyEvaluator, StateSnapshot};
+use tpt_solver::check::outcome::Outcome;
+use tpt_solver::core::engine::SolveResult;
 use tpt_solver::core::lra::LinConstraint;
 use tpt_solver::core::rational::Rational;
-use tpt_solver::core::engine::SolveResult;
-use tpt_solver::check::outcome::Outcome;
 use tpt_solver::reference::solve_and_check_lra;
 
-/// The solver's only variable: the claimed new load.
-///
-/// The inputs are known constants, so they are folded into each constraint's right-hand
-/// side rather than pinned as variables. Pinning them made Fourier–Motzkin elimination
-/// blow up on a five-variable system, even for trivial inputs.
-const NEW_LOAD: usize = 0;
+/// The solver certifies ground constraints only: every input is a known constant, so each
+/// row is a single inequality `lhs <= rhs` checked over zero variables. The solver's
+/// `i128` rationals cannot hold the realization error bound without overflowing, so that
+/// bound is checked separately with exact big rationals (see [`certify`]).
 const N_VARS: usize = 1;
 
 /// Fuel passed to the solver. The LRA path currently ignores it (see the solver's
@@ -88,52 +91,24 @@ fn exact(x: f64) -> Option<Rational> {
     }
 }
 
-/// `|x|` for an exact rational.
-fn abs(x: Rational) -> Rational {
-    if x.is_negative() {
-        x.neg()
-    } else {
-        x
-    }
-}
-
-/// A term of a constraint: a known input value, or the claimed new load.
-#[derive(Clone, Copy)]
-enum Term {
-    Known(Rational),
-    NewLoad,
-}
-
-/// Build `Σ coeff·term <= rhs`, folding every known term into the right-hand side.
-/// Returns `None` if an intermediate value overflows the solver's rationals.
-fn constraint(terms: &[(Term, i64)], rhs: Rational) -> Option<LinConstraint> {
-    let mut known = Rational::zero();
-    let mut new_load_coeff = 0i64;
-    for &(term, coeff) in terms {
-        match term {
-            Term::Known(value) => {
-                known = known.add(value.mul(Rational::from_i64(coeff))?)?;
-            }
-            Term::NewLoad => new_load_coeff += coeff,
-        }
-    }
-    let mut coeffs = vec![Rational::zero(); N_VARS];
-    coeffs[NEW_LOAD] = Rational::from_i64(new_load_coeff);
+/// The ground row `lhs <= rhs`, as the solver's `Σ coeffs·x <= rhs` form with no variables.
+/// It is satisfiable exactly when `rhs - lhs >= 0`.
+fn check_row(lhs: Rational, rhs: Rational) -> Option<LinConstraint> {
     Some(LinConstraint {
-        coeffs,
-        rhs: rhs.add(known.neg())?,
+        coeffs: vec![Rational::zero(); N_VARS],
+        rhs: rhs.add(lhs.neg())?,
     })
 }
 
 /// Certify a claimed decision on `(load, delta)` under `policy`.
 ///
 /// `claim` is `Some(new_load)` for a claimed `Allow`, and `None` for a claimed `Deny`.
-pub fn certify(
-    load: f64,
-    delta: f64,
-    policy: PolicyBounds,
-    claim: Option<f64>,
-) -> Certification {
+///
+/// The solver checks the ideal-layer conditions for `Allow` on the exact inputs. A claimed
+/// `Allow` also needs its `new_load` within `EPSILON * (|load| + |delta|)` of the exact sum,
+/// which is checked with `tpt-math-exact` big rationals because the solver cannot hold that
+/// bound. Both checks are exact. Only the first is kernel-checked.
+pub fn certify(load: f64, delta: f64, policy: PolicyBounds, claim: Option<f64>) -> Certification {
     let (Some(l), Some(d), Some(cap), Some(max_delta)) = (
         exact(load),
         exact(delta),
@@ -143,51 +118,60 @@ pub fn certify(
         return Certification::Inconclusive;
     };
     let zero = Rational::zero();
-    let known = Term::Known;
 
     // The ideal-layer conditions for Allow: delta >= 0, delta <= max_delta, load + delta <= cap.
-    let mut rows = vec![
-        constraint(&[(known(d), -1)], zero),
-        constraint(&[(known(d), 1), (known(max_delta), -1)], zero),
-        constraint(&[(known(l), 1), (known(d), 1), (known(cap), -1)], zero),
+    let Some(sum) = l.add(d) else {
+        return Certification::Inconclusive;
+    };
+    let rows = [
+        check_row(d.neg(), zero),
+        check_row(d, max_delta),
+        check_row(sum, cap),
     ];
-
-    if let Some(new_load) = claim {
-        let Some(claimed) = exact(new_load) else {
-            return Certification::Inconclusive;
-        };
-        // The realization error bound: EPSILON * (|load| + |delta|), exactly.
-        let (Some(scale), Some(epsilon)) = (abs(l).add(abs(d)), Rational::new(1, 1i128 << 52))
-        else {
-            return Certification::Inconclusive;
-        };
-        let Some(bound) = scale.mul(epsilon) else {
-            return Certification::Inconclusive;
-        };
-        let (Some(upper), Some(lower)) = (claimed.add(bound), claimed.add(bound.neg())) else {
-            return Certification::Inconclusive;
-        };
-        rows.extend([
-            // new_load is the exact sum: new_load <= l + d and new_load >= l + d.
-            constraint(&[(Term::NewLoad, 1), (known(l), -1), (known(d), -1)], zero),
-            constraint(&[(Term::NewLoad, -1), (known(l), 1), (known(d), 1)], zero),
-            // |new_load - claimed| <= bound, as two inequalities.
-            constraint(&[(Term::NewLoad, 1)], upper),
-            constraint(&[(Term::NewLoad, -1)], lower.neg()),
-        ]);
-    }
-
     let Some(cs) = rows.into_iter().collect::<Option<Vec<_>>>() else {
         return Certification::Inconclusive;
     };
 
     let (result, verdict) = solve_and_check_lra(&cs, SOLVER_FUEL);
-    match (claim.is_some(), result, verdict) {
-        (true, SolveResult::Sat, Outcome::Accept) => Certification::Verified,
-        (true, SolveResult::Unsat, Outcome::Accept) => Certification::Contradicted,
-        (false, SolveResult::Unsat, Outcome::Accept) => Certification::CertifiedDenial,
-        (false, SolveResult::Sat, Outcome::Accept) => Certification::ConservativeDenial,
+    match (claim, result, verdict) {
+        (Some(new_load), SolveResult::Sat, Outcome::Accept) => {
+            check_realization(load, delta, policy, new_load)
+        }
+        (Some(_), SolveResult::Unsat, Outcome::Accept) => Certification::Contradicted,
+        (None, SolveResult::Unsat, Outcome::Accept) => Certification::CertifiedDenial,
+        (None, SolveResult::Sat, Outcome::Accept) => Certification::ConservativeDenial,
         _ => Certification::Inconclusive,
+    }
+}
+
+/// The numerical-error half of a claimed `Allow`, checked with exact big rationals.
+fn check_realization(load: f64, delta: f64, policy: PolicyBounds, claimed: f64) -> Certification {
+    let state = SystemState { current_load: load };
+    let proposal = ActionProposal {
+        resource_delta: delta,
+    };
+    let IdealDecision::Allow {
+        new_load: exact_sum,
+    } = symbolic_evaluate_ideal(state, proposal, policy)
+    else {
+        // The solver found the ideal conditions satisfiable, so this cannot happen.
+        return Certification::Contradicted;
+    };
+    let Some(claimed) = BigRational::from_float(claimed) else {
+        return Certification::Inconclusive;
+    };
+    let (Some(load), Some(delta), Some(epsilon)) = (
+        BigRational::from_float(load),
+        BigRational::from_float(delta),
+        BigRational::from_float(f64::EPSILON),
+    ) else {
+        return Certification::Inconclusive;
+    };
+    let bound = (load.abs() + delta.abs()) * epsilon;
+    if (exact_sum - claimed).abs() <= bound {
+        Certification::Verified
+    } else {
+        Certification::Contradicted
     }
 }
 
@@ -215,7 +199,8 @@ impl<E: PolicyEvaluator> PolicyEvaluator for CertifiedEvaluator<E> {
             return decision;
         };
 
-        let (Some(delta), Some(load)) = (request.arguments.to_delta(), snapshot.current_load) else {
+        let (Some(delta), Some(load)) = (request.arguments.to_delta(), snapshot.current_load)
+        else {
             return Decision::Indeterminate {
                 reason: EvaluationFailure::MalformedArguments,
             };

@@ -13,6 +13,7 @@ publish = false
 [dependencies]
 tpt-norma-core = { workspace = true }
 tpt-norma-eval = { workspace = true }
+tpt-math-exact = { workspace = true }
 tpt-solver = { workspace = true }
 
 [dev-dependencies]
