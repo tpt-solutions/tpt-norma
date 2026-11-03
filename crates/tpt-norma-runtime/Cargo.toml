@@ -1,0 +1,18 @@
+[package]
+name = "tpt-norma-runtime"
+description = "Snapshot freshness and the commit-time executor for authorized actions (spec2 §4-5)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Depends on unpublished tpt-norma crates.
+publish = false
+
+[dependencies]
+tpt-norma-core = { workspace = true }
+tpt-norma-eval = { workspace = true }
+
+[lints]
+workspace = true
