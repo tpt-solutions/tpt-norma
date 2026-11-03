@@ -51,6 +51,8 @@ pub enum Certification {
     ConservativeDenial,
     /// The solver refuted the claimed `Allow`.
     Contradicted,
+    /// The solver ran out of its resource budget before it could decide.
+    Exhausted,
     /// The solver could not give a checked answer.
     Inconclusive,
 }
@@ -133,14 +135,27 @@ pub fn certify(load: f64, delta: f64, policy: PolicyBounds, claim: Option<f64>) 
     };
 
     let (result, verdict) = solve_and_check_lra(&cs, SOLVER_FUEL);
-    match (claim, result, verdict) {
-        (Some(new_load), SolveResult::Sat, Outcome::Accept) => {
+    match (claim, classify(claim.is_some(), result, verdict)) {
+        (Some(new_load), Some(Certification::Verified)) => {
             check_realization(load, delta, policy, new_load)
         }
-        (Some(_), SolveResult::Unsat, Outcome::Accept) => Certification::Contradicted,
-        (None, SolveResult::Unsat, Outcome::Accept) => Certification::CertifiedDenial,
-        (None, SolveResult::Sat, Outcome::Accept) => Certification::ConservativeDenial,
-        _ => Certification::Inconclusive,
+        (_, Some(certification)) => certification,
+        (_, None) => Certification::Inconclusive,
+    }
+}
+
+/// Map the solver's answer and its kernel verdict onto a certification.
+///
+/// `is_allow` is true for a claimed `Allow`. `Verified` means only that the ideal-layer model
+/// was accepted. [`certify`] still has to check the realization bound for it.
+fn classify(is_allow: bool, result: SolveResult, verdict: Outcome) -> Option<Certification> {
+    match (is_allow, result, verdict) {
+        (true, SolveResult::Sat, Outcome::Accept) => Some(Certification::Verified),
+        (true, SolveResult::Unsat, Outcome::Accept) => Some(Certification::Contradicted),
+        (false, SolveResult::Unsat, Outcome::Accept) => Some(Certification::CertifiedDenial),
+        (false, SolveResult::Sat, Outcome::Accept) => Some(Certification::ConservativeDenial),
+        (_, SolveResult::Unknown, _) => Some(Certification::Exhausted),
+        _ => None,
     }
 }
 
@@ -211,9 +226,73 @@ impl<E: PolicyEvaluator> PolicyEvaluator for CertifiedEvaluator<E> {
             Certification::Contradicted => Decision::Indeterminate {
                 reason: EvaluationFailure::SolverRejected,
             },
+            Certification::Exhausted => Decision::Indeterminate {
+                reason: EvaluationFailure::ResourceExhausted,
+            },
             _ => Decision::Indeterminate {
                 reason: EvaluationFailure::SolverInconclusive,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_satisfiable_allow_with_an_accepted_model_is_verified() {
+        assert_eq!(
+            classify(true, SolveResult::Sat, Outcome::Accept),
+            Some(Certification::Verified)
+        );
+    }
+
+    #[test]
+    fn an_unsat_allow_is_contradicted() {
+        assert_eq!(
+            classify(true, SolveResult::Unsat, Outcome::Accept),
+            Some(Certification::Contradicted)
+        );
+    }
+
+    #[test]
+    fn an_unsat_deny_is_certified() {
+        assert_eq!(
+            classify(false, SolveResult::Unsat, Outcome::Accept),
+            Some(Certification::CertifiedDenial)
+        );
+    }
+
+    #[test]
+    fn a_sat_deny_is_a_conservative_denial() {
+        assert_eq!(
+            classify(false, SolveResult::Sat, Outcome::Accept),
+            Some(Certification::ConservativeDenial)
+        );
+    }
+
+    #[test]
+    fn a_resource_budget_stop_is_exhausted_for_either_claim() {
+        assert_eq!(
+            classify(true, SolveResult::Unknown, Outcome::Inconclusive),
+            Some(Certification::Exhausted)
+        );
+        assert_eq!(
+            classify(false, SolveResult::Unknown, Outcome::Inconclusive),
+            Some(Certification::Exhausted)
+        );
+    }
+
+    #[test]
+    fn a_rejected_verdict_is_not_decided() {
+        assert_eq!(
+            classify(true, SolveResult::Sat, Outcome::Inconclusive),
+            None
+        );
+        assert_eq!(
+            classify(false, SolveResult::Unsat, Outcome::Inconclusive),
+            None
+        );
     }
 }
