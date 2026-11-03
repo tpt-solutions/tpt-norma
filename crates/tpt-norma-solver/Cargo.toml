@@ -1,0 +1,22 @@
+[package]
+name = "tpt-norma-solver"
+description = "Certificate checking of policy decisions through tpt-solver (spec2 §4, solver adapter)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Depends on the unpublished tpt-solver sibling checkout.
+publish = false
+
+[dependencies]
+tpt-norma-core = { workspace = true }
+tpt-norma-eval = { workspace = true }
+tpt-solver = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"
+
+[lints]
+workspace = true
