@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-linear"
 description = "Linear constraints and exact Fourier–Motzkin contradiction check, internal to tpt-norma (spec §4)."
+readme = "README.md"
+keywords = ["linear-constraints", "fourier-motzkin", "rational", "contradiction", "lra"]
+categories = ["mathematics", "algorithms"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
