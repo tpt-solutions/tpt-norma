@@ -13,9 +13,11 @@
 //! across concurrent calls is a caller obligation (spec §8).
 
 mod action_validator;
+mod allocator;
 mod ideal;
 
 pub use action_validator::{
     check_action, validate_action, ActionProposal, Decision, PolicyBounds, Rejection, SystemState,
 };
+pub use allocator::{validate_multi, DimensionRejection};
 pub use ideal::{symbolic_evaluate_ideal, IdealDecision};
