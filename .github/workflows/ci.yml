@@ -40,9 +40,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Run cargo-deny on the host rather than via cargo-deny-action: the action runs
+      # in a container that only mounts this repo, so the sibling checkouts below
+      # would not be visible and the path dependencies would fail to resolve.
       - name: Check out sibling repos
         run: |
+          git clone --depth 1 https://github.com/tpt-solutions/tpt-telos.git ../tpt-telos
           git clone --depth 1 https://github.com/tpt-solutions/tpt-math.git ../tpt-math
-      - uses: EmbarkStudios/cargo-deny-action@v2
+          git clone --depth 1 https://github.com/tpt-solutions/tpt-solver.git ../tpt-solver
+          git clone --depth 1 https://github.com/tpt-solutions/tpt-uir.git ../tpt-uir
+      - uses: taiki-e/install-action@v2
         with:
-          command: check
+          tool: cargo-deny
+      - name: Check dependencies and licenses
+        run: cargo deny check
