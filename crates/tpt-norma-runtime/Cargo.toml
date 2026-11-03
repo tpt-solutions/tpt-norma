@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-runtime"
 description = "Snapshot freshness and the commit-time executor for authorized actions (spec2 §4-5)."
+readme = "README.md"
+keywords = ["ai-agents", "gate", "state-machine", "commit", "guardrails"]
+categories = ["concurrency", "development-tools"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
