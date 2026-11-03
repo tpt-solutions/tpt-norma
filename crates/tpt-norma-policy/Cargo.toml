@@ -1,0 +1,18 @@
+[package]
+name = "tpt-norma-policy"
+description = "N-dimensional policy space (axis-aligned bounds plus linear rules) and its consistency check (spec §4)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Depends on the unpublished tpt-telos sibling checkout.
+publish = false
+
+[dependencies]
+tpt-telos-ir = { workspace = true }
+tpt-telos-sdk = { workspace = true }
+
+[lints]
+workspace = true

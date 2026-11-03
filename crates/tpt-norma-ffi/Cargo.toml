@@ -1,0 +1,29 @@
+[package]
+name = "tpt-norma-ffi"
+description = "C ABI over the tpt-norma validator and shared gate (spec §4, FFI enforcement bridge)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Depends on unpublished tpt-norma crates.
+publish = false
+
+[lib]
+# staticlib for C hosts; rlib so the Rust tests can call the exported functions.
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+tpt-norma-core = { workspace = true }
+tpt-norma-eval = { workspace = true }
+tpt-norma-runtime = { workspace = true }
+
+# This crate cannot inherit the workspace lints: they forbid `unsafe_code`, and a forbid cannot be
+# relaxed. Here `unsafe_code` is denied, and the only allowance is on the FFI module.
+[lints.rust]
+unsafe_code = "deny"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = "warn"
