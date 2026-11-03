@@ -1,0 +1,21 @@
+[package]
+name = "tpt-norma-core"
+description = "Verified stateful action validator for bounded AI agent actions (spec §6)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Depends on sibling path dependencies, which crates.io does not accept.
+publish = false
+
+[dependencies]
+# Exact rationals for the reference evaluator (symbolic_evaluate_ideal).
+tpt-math-exact = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"
+
+[lints]
+workspace = true

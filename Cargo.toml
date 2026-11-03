@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/tpt-norma-core",
+    "crates/tpt-norma-eval",
+    "crates/tpt-norma-runtime",
+    "crates/tpt-norma-solver",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+license = "MIT OR Apache-2.0"
+authors = ["TPT Solutions"]
+repository = "https://github.com/tpt-solutions/tpt-norma"
+
+[workspace.dependencies]
+tpt-norma-core = { path = "crates/tpt-norma-core" }
+tpt-norma-eval = { path = "crates/tpt-norma-eval" }
+tpt-norma-solver = { path = "crates/tpt-norma-solver" }
+# Sibling path dependencies, not crates.io releases: these are pre-1.0 sibling
+# working trees, so they are wired by relative path rather than version.
+tpt-telos-sdk = { path = "../tpt-telos/crates/tpt-telos-sdk" }
+tpt-telos-parser = { path = "../tpt-telos/crates/tpt-telos-parser" }
+tpt-math-exact = { path = "../tpt-math/crates/tpt-math-exact" }
+tpt-solver = { path = "../tpt-solver/tpt-solver" }
+tpt-uir-core = { path = "../tpt-uir/crates/tpt-uir-core" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"

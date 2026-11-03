@@ -1,0 +1,37 @@
+// Copyright (c) TPT Solutions
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+// Ideal-layer twin of `validate_action` (spec §6), encoded as QF_LRA contracts.
+//
+// This checks the exact-arithmetic model only. The f64 realization and the
+// conservative-denial margin (EPSILON_ROUNDING) are proven separately, after
+// Phase 1 lands; see the todo.
+//
+// NOT VERIFIED. This twin is written but does not yet count as a proof. The `telos`
+// build used here does not check `old()` equality postconditions soundly (see
+// THREAT_MODEL.md). Re-run `telos verify` on this file once that is fixed upstream.
+
+module ActionValidator {
+    // The trusted state: current load within the policy capacity.
+    invariant Ledger {
+        load >= 0
+        load <= capacity
+    }
+
+    // Admit an action on the Allow path. The preconditions are exactly the
+    // conditions under which `validate_action` returns `Decision::Allow`.
+    func admit(mut ledger: Ledger, delta: Int, max_delta_per_call: Int) -> Int
+        requires max_delta_per_call >= 0
+        requires delta >= 0
+        requires delta <= max_delta_per_call
+        requires ledger.load + delta <= ledger.capacity
+        ensures ledger.load == old(ledger.load) + delta
+        ensures ledger.load <= ledger.capacity
+        ensures ledger.load >= 0
+    {
+        mutate state {
+            ledger.load = old(ledger.load) + delta;
+        }
+        ledger.load
+    }
+}
