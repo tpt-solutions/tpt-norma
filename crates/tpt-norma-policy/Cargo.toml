@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-policy"
 description = "N-dimensional policy space (axis-aligned bounds plus linear rules) and its consistency check (spec §4)."
+readme = "README.md"
+keywords = ["policy", "dsl", "ai-agents", "constraints", "parser"]
+categories = ["config", "parser-implementations"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
