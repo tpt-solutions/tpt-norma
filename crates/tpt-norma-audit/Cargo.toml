@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-audit"
 description = "Hash-chained, tamper-evident audit log of the authorization lifecycle (spec2 §4, audit adapter)."
+readme = "README.md"
+keywords = ["audit-log", "hash-chain", "tamper-evident", "ai-agents", "sha256"]
+categories = ["cryptography", "development-tools"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
