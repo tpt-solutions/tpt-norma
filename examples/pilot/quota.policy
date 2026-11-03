@@ -1,0 +1,9 @@
+# Pilot policy: one agent, one resource, a fixed budget of tool calls (no time window).
+#
+# `load` counts the calls made so far and `delta` is the cost of one call. Capacity is 101,
+# not 100: the conservative margin (D16) denies an exact fit, so 101 admits 100 calls.
+# The Rust host must use the same numbers: PolicyBounds { max_capacity: 101.0, max_delta_per_call: 1.0 }.
+dim load in [0, 101]
+dim delta in [0, 1]
+rule per_call_cap: delta <= 1
+rule budget: load + delta <= 101

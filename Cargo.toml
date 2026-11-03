@@ -5,6 +5,7 @@ members = [
     "crates/tpt-norma-policy",
     "crates/tpt-norma-proof",
     "crates/tpt-norma-core",
+    "crates/tpt-norma-linear",
     "crates/tpt-norma-ffi",
     "crates/tpt-norma-eval",
     "crates/tpt-norma-runtime",
@@ -28,11 +29,9 @@ tpt-norma-core = { path = "crates/tpt-norma-core" }
 tpt-norma-ffi = { path = "crates/tpt-norma-ffi" }
 tpt-norma-eval = { path = "crates/tpt-norma-eval" }
 tpt-norma-solver = { path = "crates/tpt-norma-solver" }
+tpt-norma-linear = { path = "crates/tpt-norma-linear" }
 # Sibling path dependencies, not crates.io releases: these are pre-1.0 sibling
 # working trees, so they are wired by relative path rather than version.
-tpt-telos-sdk = { path = "../tpt-telos/crates/tpt-telos-sdk" }
-tpt-telos-parser = { path = "../tpt-telos/crates/tpt-telos-parser" }
-tpt-telos-ir = { path = "../tpt-telos/crates/tpt-telos-ir" }
 tpt-math-exact = { path = "../tpt-math/crates/tpt-math-exact" }
 tpt-solver = { path = "../tpt-solver/tpt-solver" }
 tpt-uir-core = { path = "../tpt-uir/crates/tpt-uir-core" }

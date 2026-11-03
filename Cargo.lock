@@ -643,11 +643,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tpt-norma-linear"
+version = "0.1.0"
+dependencies = [
+ "tpt-math-exact",
+]
+
+[[package]]
 name = "tpt-norma-policy"
 version = "0.1.0"
 dependencies = [
- "tpt-telos-ir",
- "tpt-telos-sdk",
+ "tpt-norma-linear",
 ]
 
 [[package]]
@@ -696,64 +702,6 @@ dependencies = [
 [[package]]
 name = "tpt-solver-core"
 version = "0.1.0"
-
-[[package]]
-name = "tpt-telos-agent"
-version = "0.2.0"
-dependencies = [
- "tpt-telos-ir",
- "tpt-telos-parser",
- "tpt-telos-router",
- "tpt-telos-verifier",
-]
-
-[[package]]
-name = "tpt-telos-codegen"
-version = "0.2.0"
-dependencies = [
- "sha2",
- "tpt-telos-agent",
- "tpt-telos-ir",
- "tpt-telos-parser",
- "tpt-telos-router",
-]
-
-[[package]]
-name = "tpt-telos-ir"
-version = "0.2.0"
-dependencies = [
- "tpt-telos-parser",
-]
-
-[[package]]
-name = "tpt-telos-parser"
-version = "0.2.0"
-
-[[package]]
-name = "tpt-telos-router"
-version = "0.2.0"
-dependencies = [
- "tpt-telos-parser",
-]
-
-[[package]]
-name = "tpt-telos-sdk"
-version = "0.2.0"
-dependencies = [
- "tpt-telos-agent",
- "tpt-telos-codegen",
- "tpt-telos-ir",
- "tpt-telos-parser",
- "tpt-telos-router",
- "tpt-telos-verifier",
-]
-
-[[package]]
-name = "tpt-telos-verifier"
-version = "0.2.0"
-dependencies = [
- "tpt-telos-ir",
-]
 
 [[package]]
 name = "typenum"

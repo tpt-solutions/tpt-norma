@@ -7,12 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-# Depends on the unpublished tpt-telos sibling checkout.
 publish = false
 
 [dependencies]
-tpt-telos-ir = { workspace = true }
-tpt-telos-sdk = { workspace = true }
+tpt-norma-linear = { workspace = true }
 
 [lints]
 workspace = true

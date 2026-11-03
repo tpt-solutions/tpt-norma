@@ -17,17 +17,16 @@
 //! Operators are `<=`, `<`, `>=`, `>` and `==`. Expressions are sums of `var`, `k * var` and
 //! integer constants.
 //!
-//! Coefficients and bounds are integers because `tpt-telos-ir` works over `i64`. A policy in
-//! fixed-point units (for example micro-units) must be scaled before it is written here.
+//! Coefficients and bounds are `i64`. A policy in fixed-point units (for example micro-units)
+//! must be scaled before it is written here.
 //!
-//! [`PolicySpace::check_consistency`] reuses `tpt-telos-sdk`'s [`check_contradictions`]. Each rule
+//! [`PolicySpace::check_consistency`] uses `tpt-norma-linear`'s [`check_contradictions`]. Each rule
 //! and each dimension's bounds form a named group, and the check reports which groups can never
 //! hold together. It also reports whether the whole space is empty.
 
 use std::collections::BTreeMap;
 
-use tpt_telos_ir::{Constraint, Linear, Relation};
-use tpt_telos_sdk::contradiction::{check_contradictions, NamedConstraints};
+use tpt_norma_linear::{check_contradictions, Constraint, Linear, NamedConstraints, Relation};
 
 /// A parse or compile error, with the 1-based line it occurred on.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,7 +125,7 @@ impl PolicySpace {
             }
         }
         for rule in &self.rules {
-            for (var, _) in &rule.lhs.terms {
+            for var in rule.lhs.terms.keys() {
                 if !declared.contains_key(var.as_str()) {
                     return Err(PolicyError {
                         line: 0,
@@ -161,7 +160,7 @@ impl PolicySpace {
             })
     }
 
-    /// Check whether the groups can hold together, using `tpt-telos-sdk`'s contradiction check.
+    /// Check whether the groups can hold together, using `tpt-norma-linear`'s contradiction check.
     pub fn check_consistency(&self) -> Result<Consistency, PolicyError> {
         self.validate_names()?;
 
@@ -171,8 +170,14 @@ impl PolicySpace {
             groups.push(NamedConstraints {
                 label: format!("dim:{}", dim.name),
                 constraints: vec![
-                    Constraint(x.sub(&Linear::constant_only(dim.min)), Relation::Ge),
-                    Constraint(x.sub(&Linear::constant_only(dim.max)), Relation::Le),
+                    Constraint {
+                        expr: x.sub(&Linear::constant_only(dim.min)),
+                        relation: Relation::Ge,
+                    },
+                    Constraint {
+                        expr: x.sub(&Linear::constant_only(dim.max)),
+                        relation: Relation::Le,
+                    },
                 ],
             });
         }
@@ -196,9 +201,9 @@ impl PolicySpace {
     }
 }
 
-/// The telos constraints for one rule. `Eq` becomes a single `Eq` constraint.
+/// The constraints for one rule. `Eq` becomes a single `Eq` constraint.
 fn rule_constraints(rule: &Rule) -> Vec<Constraint> {
-    let diff = rule.lhs.sub(&Linear::constant_only(rule.rhs));
+    let expr = rule.lhs.sub(&Linear::constant_only(rule.rhs));
     let relation = match rule.op {
         Op::Le => Relation::Le,
         Op::Lt => Relation::Lt,
@@ -206,7 +211,7 @@ fn rule_constraints(rule: &Rule) -> Vec<Constraint> {
         Op::Gt => Relation::Gt,
         Op::Eq => Relation::Eq,
     };
-    vec![Constraint(diff, relation)]
+    vec![Constraint { expr, relation }]
 }
 
 fn eval(expr: &Linear, point: &BTreeMap<String, i64>) -> Option<i64> {

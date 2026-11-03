@@ -1,0 +1,17 @@
+[package]
+name = "tpt-norma-linear"
+description = "Linear constraints and exact Fourier–Motzkin contradiction check, internal to tpt-norma (spec §4)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Depends on the unpublished tpt-math sibling checkout.
+publish = false
+
+[dependencies]
+tpt-math-exact = { workspace = true }
+
+[lints]
+workspace = true
