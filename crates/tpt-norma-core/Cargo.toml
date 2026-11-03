@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-core"
 description = "Verified stateful action validator for bounded AI agent actions (spec §6)."
+readme = "README.md"
+keywords = ["ai-agents", "action-validation", "guardrails", "rate-limit", "policy"]
+categories = ["algorithms", "mathematics"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
