@@ -7,6 +7,12 @@
 //! [`StateStore::commit`] the resulting decision. The commit rejects evidence that was
 //! made for a different request, or against a state version that has since changed.
 
+mod gate;
+mod shared;
+
+pub use gate::{Gate, Refusal};
+pub use shared::SharedGate;
+
 use tpt_norma_eval::{
     ActionRequest, Decision, EvaluationFailure, PolicyEvaluator, StateSnapshot, StateVersion,
 };

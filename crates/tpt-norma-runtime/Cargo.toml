@@ -11,6 +11,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+tpt-norma-audit = { workspace = true }
 tpt-norma-core = { workspace = true }
 tpt-norma-eval = { workspace = true }
 
