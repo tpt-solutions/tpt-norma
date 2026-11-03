@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-ffi"
 description = "C ABI over the tpt-norma validator and shared gate (spec §4, FFI enforcement bridge)."
+readme = "README.md"
+keywords = ["ffi", "c-abi", "ai-agents", "policy", "guardrails"]
+categories = ["development-tools::ffi"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
