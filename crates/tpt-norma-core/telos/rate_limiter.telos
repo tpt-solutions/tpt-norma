@@ -1,0 +1,49 @@
+// Copyright (c) TPT Solutions
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+// Ideal-layer twin of the token-bucket rate limiter, adapted from
+// `tpt-telos/examples/rate_limiter.telos` for the two-layer f64 methodology (todo Phase 3).
+//
+// The `ensures` below are checked exactly by `crates/tpt-norma-solver/tests/rate_limiter.rs`,
+// which replays each postcondition as a Farkas certificate. That is not a `telos verify`
+// proof. The `telos` build used here does not check `old()` equality postconditions soundly
+// (see THREAT_MODEL.md), so re-run `telos verify` on this file once that is fixed upstream.
+//
+// The f64 realization of these bounds (EPSILON_ROUNDING) is not covered here.
+
+module RateLimiter {
+    // The trusted state: tokens within [0, capacity].
+    invariant Bucket {
+        tokens >= 0
+        capacity > 0
+        tokens <= capacity
+    }
+
+    // Spend `cost` tokens. The preconditions are the conditions under which the
+    // bucket can pay the cost without going negative.
+    func consume(mut bucket: Bucket, cost: Int) -> Int
+        requires cost > 0
+        requires cost <= bucket.tokens
+        ensures bucket.tokens == old(bucket.tokens) - cost
+        ensures bucket.tokens >= 0
+    {
+        mutate state {
+            bucket.tokens = old(bucket.tokens) - cost;
+        }
+        bucket.tokens
+    }
+
+    // Add `amount` tokens back. The preconditions keep the bucket within capacity.
+    func refill(mut bucket: Bucket, amount: Int) -> Int
+        requires amount > 0
+        requires bucket.tokens + amount <= bucket.capacity
+        ensures bucket.tokens == old(bucket.tokens) + amount
+        ensures bucket.tokens >= 0
+        ensures bucket.tokens <= bucket.capacity
+    {
+        mutate state {
+            bucket.tokens = old(bucket.tokens) + amount;
+        }
+        bucket.tokens
+    }
+}
