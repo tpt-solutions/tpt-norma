@@ -10,7 +10,7 @@
 mod evaluator;
 mod types;
 
-pub use evaluator::{CoreEvaluator, Guarded, PolicyEvaluator};
+pub use evaluator::{CoreEvaluator, Guarded, PolicyEvaluator, DEFAULT_MAX_ARGUMENT_BYTES};
 pub use types::{
     ActionId, ActionRequest, ActorId, CanonicalBytes, Decision, DecisionEvidence,
     EvaluationFailure, ResourceId, StateSnapshot, StateVersion, Violation,

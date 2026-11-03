@@ -83,23 +83,52 @@ impl PolicyEvaluator for CoreEvaluator {
 /// - an `Allow` whose evidence does not bind this exact request and snapshot version
 ///   becomes `Indeterminate`.
 ///
+/// Requests whose encoded arguments exceed `max_argument_bytes` are refused before the inner
+/// evaluator runs. This is the memory limit. A canonical delta is 8 bytes, so the default of
+/// [`DEFAULT_MAX_ARGUMENT_BYTES`] is far above any legitimate request.
+///
 /// The deadline is checked after the call returns. It cannot interrupt a call that is
-/// still running, so a real hard bound needs a separate thread or process. Fuel and
-/// memory limits are not enforced here.
+/// still running, so a real hard bound needs a separate thread or process. Fuel is not
+/// enforced here: the evaluator's cost is a fixed closed-form check, and the solver's fuel is
+/// not honoured on its LRA path (see `tpt-norma-solver`).
 #[derive(Debug, Clone)]
 pub struct Guarded<E> {
     inner: E,
     deadline: Duration,
+    max_argument_bytes: usize,
 }
+
+/// The default limit on encoded request arguments, in bytes.
+pub const DEFAULT_MAX_ARGUMENT_BYTES: usize = 1024;
 
 impl<E> Guarded<E> {
     pub fn new(inner: E, deadline: Duration) -> Self {
-        Self { inner, deadline }
+        Self {
+            inner,
+            deadline,
+            max_argument_bytes: DEFAULT_MAX_ARGUMENT_BYTES,
+        }
+    }
+
+    /// Replace the argument size limit.
+    pub fn with_max_argument_bytes(mut self, limit: usize) -> Self {
+        self.max_argument_bytes = limit;
+        self
     }
 }
 
 impl<E: PolicyEvaluator + std::panic::RefUnwindSafe> PolicyEvaluator for Guarded<E> {
     fn evaluate(&self, request: &ActionRequest, snapshot: &StateSnapshot) -> Decision {
+        let actual = request.arguments.len();
+        if actual > self.max_argument_bytes {
+            return Decision::Indeterminate {
+                reason: EvaluationFailure::ArgumentsTooLarge {
+                    limit: self.max_argument_bytes,
+                    actual,
+                },
+            };
+        }
+
         let start = Instant::now();
         let outcome =
             panic::catch_unwind(AssertUnwindSafe(|| self.inner.evaluate(request, snapshot)));

@@ -29,6 +29,20 @@ impl CanonicalBytes {
         Self(delta.to_bits().to_le_bytes().to_vec())
     }
 
+    /// Wrap raw bytes as arguments. Their meaning is checked by the evaluator, not here.
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    /// The encoded length in bytes.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Decode the delta. Returns `None` for a wrong length or a non-finite value.
     pub fn to_delta(&self) -> Option<f64> {
         let bytes: [u8; 8] = self.0.as_slice().try_into().ok()?;
@@ -113,6 +127,8 @@ pub enum EvaluationFailure {
     },
     /// The evaluator exceeded its wall-clock deadline.
     Timeout { limit: Duration },
+    /// The request's arguments are larger than the memory limit allows.
+    ArgumentsTooLarge { limit: usize, actual: usize },
     /// The evaluator panicked.
     EvaluatorPanicked,
     /// An `Allow` did not bind the request and snapshot version it was asked about.
@@ -121,6 +137,8 @@ pub enum EvaluationFailure {
     SolverRejected,
     /// The solver could not decide, or the inputs are outside its exact range.
     SolverInconclusive,
+    /// The solver ran out of its resource budget before it could decide.
+    ResourceExhausted,
 }
 
 /// The three-valued outcome of a policy evaluation.
