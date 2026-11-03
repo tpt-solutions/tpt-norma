@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-eval"
 description = "Three-valued policy evaluation (Allow / Deny / Indeterminate) over tpt-norma-core (spec2 §3-4)."
+readme = "README.md"
+keywords = ["ai-agents", "policy", "fail-closed", "three-valued", "evaluation"]
+categories = ["algorithms"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
