@@ -1,6 +1,9 @@
 [package]
 name = "tpt-norma-proof"
 description = "Proof-certificate format for tpt-norma, with an illustrative draft for validate_action (spec §7)."
+readme = "README.md"
+keywords = ["certificate", "sha256", "provenance", "compliance", "audit"]
+categories = ["cryptography", "development-tools"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
