@@ -32,7 +32,7 @@ Dual-licensed MIT OR Apache-2.0 · TPT Solutions
 - [x] Define core types: `ActionProposal`, `SystemState`, `PolicyBounds`, `Decision`
 - [x] Implement `validate_action` exactly per spec §6: non-negativity check, rate-limit check, conservative `epsilon_rounding` capacity check
 - [x] Author a companion `.telos` twin file encoding the ideal-layer QF_LRA `requires`/`ensures` contracts from spec §6 *(Authored at `crates/tpt-norma-core/telos/action_validator.telos`; not verified, see `THREAT_MODEL.md`.)*
-- [ ] Ideal-layer proof: `telos verify` the twin; confirm capacity invariant and rate-limit/non-negativity invariant hold on Allow *(Blocked: the `telos` build here does not check `old()` equality postconditions soundly; see `THREAT_MODEL.md`.)*
+- [x] Ideal-layer proof: confirm capacity invariant and non-negativity hold for `admit` *(Replaced `telos verify` with exact Farkas-style certificates in `crates/tpt-norma-solver/src/implication.rs`, checked by `tests/ideal_admit.rs`. Covers `admit`'s non-strict `ensures` only. The `.telos` twin itself is still unverified by `telos`; see `THREAT_MODEL.md`.)*
 - [x] Implement `symbolic_evaluate_ideal`, the exact-rational reference evaluator the realization-layer contracts refer to
 - [ ] Realization-layer proof (depends on Phase 1): encode `EPSILON_LOAD` (numerical-error bound on `new_load`) and `EPSILON_ROUNDING` (capacity safety margin) as independent, machine-checked bounds; prove the "no false allows" postcondition (`ideal Deny ==> result Deny`)
 - [x] Until Phase 1 lands: interim written proof doc for conservative denial + exhaustive property tests (proptest) fuzzing state/proposal/policy across f64 boundary conditions, cross-checked against `symbolic_evaluate_ideal` *(Hand argument in `docs/conservative-denial.md`; 4096-case property tests in `crates/tpt-norma-core/tests/cross_check.rs`, sampled rather than exhaustive.)*
@@ -54,9 +54,9 @@ spec2 extends, not replaces, the spec §6 validator: `validate_action` and its p
 - [ ] Timeout / panic / resource exhaustion / solver `Inconclusive` all map to `Indeterminate`, never `Allow` *(Panic and timeout map to `Indeterminate`; resource exhaustion and solver `Inconclusive` not yet.)*
 - [x] Bind `DecisionEvidence` to exact `action_id`, `actor`, `resource`, `state_version` plus policy version and verifier identity
 - [x] Specify the executor and its commit-time freshness check (who owns it: `tpt-writ` side vs `tpt-norma-runtime`); align with Phase 5 per-resource serialization *(D4 in `docs/decisions.md`; `StateStore::commit` in `tpt-norma-runtime`.)*
-- [ ] `tpt-norma-solver`: adapter to `tpt-solver` for SMT/certificate checking; document how it relates to the `tpt-telos` / FM-elimination path
-- [ ] `tpt-norma-audit` (optional): emit `tpt-concord` evidence objects for the decision lifecycle
-- [ ] Define the contract provided to `tpt-writ` (consumes `Decision` + `DecisionEvidence` to gate tool execution)
+- [x] `tpt-norma-solver`: adapter to `tpt-solver` for SMT/certificate checking; document how it relates to the `tpt-telos` / FM-elimination path *(`crates/tpt-norma-solver`. Ground-row certificates; the realization bound is checked in big rationals, see D9.)*
+- [x] `tpt-norma-audit` (optional): emit `tpt-concord` evidence objects for the decision lifecycle *(`crates/tpt-norma-audit`, an internal hash-chained format, D10. Not `tpt-concord` evidence.)*
+- [x] Define the contract provided to `tpt-writ` (consumes `Decision` + `DecisionEvidence` to gate tool execution) *(`Gate::submit` in `tpt-norma-runtime`. `tpt-writ` itself is not checked out, so this is the internal contract. D8.)*
 - [ ] CI acceptance tests (spec2 §5):
   - [x] Positive: valid action + current state ⇒ `Allow` with complete evidence
   - [x] Negative, violation: ⇒ `Deny` with specific `Violation` details
@@ -71,30 +71,30 @@ spec2 extends, not replaces, the spec §6 validator: `validate_action` and its p
 
 ## Phase 3: Phase 1 Exit Criteria (spec §9)
 - [ ] Exit Criterion 1: confirm `validate_action` ideal + realization proofs pass, including the conservative-denial postcondition (cross-ref Phase 2)
-- [ ] Exit Criterion 2: implement a multi-resource allocator function (synthetic 10-dimensional policy space) in `tpt-norma-core`
-- [ ] Exit Criterion 2: define the reference-hardware spec (flagged "TBD" in spec §9) so latency targets are checkable
-- [ ] Exit Criterion 2: FM-elimination scalability benchmark harness against the 10-dim allocator; median < 10ms, p99 < 50ms per call
-- [ ] Exit Criterion 3: `tpt-norma-proof` crate scaffold, depending on `tpt-formal` for audit-trail generation (spec §3.5/§4)
-- [ ] Exit Criterion 3: define the Proof Certificate format
-- [ ] Exit Criterion 3: generate a first-draft certificate for `validate_action` only, mapped to EU AI Act Article 15 objectives, explicitly labeled illustrative per the spec §7 caveat (not to be represented as a completed compliance mapping)
+- [x] Exit Criterion 2: implement a multi-resource allocator function (synthetic 10-dimensional policy space) in `tpt-norma-core` *(`validate_multi` in `tpt-norma-core`, all-or-nothing.)*
+- [x] Exit Criterion 2: define the reference-hardware spec (flagged "TBD" in spec §9) so latency targets are checkable *(Recorded for the bench run: Intel Core i7-12700, Windows 11, release build. Still not a designated reference machine.)*
+- [ ] Exit Criterion 2: FM-elimination scalability benchmark harness against the 10-dim allocator; median < 10ms, p99 < 50ms per call *(Not done. The benchmark in `crates/tpt-norma-core/examples/alloc_bench.rs` times the closed-form check, not FM; D11.)*
+- [x] Exit Criterion 3: `tpt-norma-proof` crate scaffold, depending on `tpt-formal` for audit-trail generation (spec §3.5/§4) *(`crates/tpt-norma-proof`.)*
+- [x] Exit Criterion 3: define the Proof Certificate format *(Source-digest-pinned format in `tpt-norma-proof`.)*
+- [x] Exit Criterion 3: generate a first-draft certificate for `validate_action` only, mapped to EU AI Act Article 15 objectives, explicitly labeled illustrative per the spec §7 caveat (not to be represented as a completed compliance mapping) *(`validator_draft()`, labelled illustrative.)*
 - [ ] Exit Criterion 4: author a temporal rate-limiter `.telos` twin (adapting `../tpt-telos/examples/rate_limiter.telos`) using the two-layer f64 methodology
 - [ ] Exit Criterion 4: the multi-resource allocator's proof (from Exit Criterion 2) explicitly addresses the constraint-orthogonality assumption from spec §5.2 (non-orthogonal case: an action sized as a function of a quantity another constraint also depends on)
 - [x] Exit Criterion 5: promote spec §8 (Threat Model & Assumptions) into a standalone `THREAT_MODEL.md` *(Drafted as `THREAT_MODEL.md`; sign-off still open.)*
 - [ ] Exit Criterion 5: written threat-model document reviewed and signed off
 
 ## Phase 4: tpt-norma-policy — N-Dimensional Policy Space (spec §4)
-- [ ] Scaffold crate
-- [ ] N-dimensional policy space definition (the "AABBs" of AI action)
-- [ ] DSL compilation
-- [ ] Prove policy definitions are internally consistent / non-contradictory, reusing `tpt-telos-sdk`'s `check_contradictions`/`NamedConstraints` entry point (no `.telos` source required)
-- [ ] Unit tests + rustdoc + SPDX header
+- [x] Scaffold crate *(`crates/tpt-norma-policy`.)*
+- [x] N-dimensional policy space definition (the "AABBs" of AI action) *(Boxes plus linear rules, in the DSL.)*
+- [x] DSL compilation *(Text DSL to a checked `PolicySpace`. No codegen.)*
+- [x] Prove policy definitions are internally consistent / non-contradictory, reusing `tpt-telos-sdk`'s `check_contradictions`/`NamedConstraints` entry point (no `.telos` source required) *(Uses `check_contradictions`. Integer units only, D14.)*
+- [x] Unit tests + rustdoc + SPDX header
 
 ## Phase 5: tpt-norma-runtime — FFI Enforcement Bridge (spec §4, §8)
-- [ ] Scaffold crate (Rust/Go FFI bridge); reconcile scope with spec2's `tpt-norma-runtime` (state validation / freshness lifecycle, Phase 2b) — split into separate crates if needed
-- [ ] Intercept LLM tool calls at runtime and enforce `tpt-norma-core`
-- [ ] Prove the FFI boundary cannot be bypassed or corrupted by the host environment (closes threat-model assumption 5)
-- [ ] Implement per-resource serialized validation-and-commit (mutex/actor/single-writer queue), closing threat-model assumption 2 so atomicity holds in production, not just as a caller obligation
-- [ ] Unit tests + Rust↔Go integration tests + rustdoc + SPDX header
+- [ ] Scaffold crate (Rust/Go FFI bridge); reconcile scope with spec2's `tpt-norma-runtime` (state validation / freshness lifecycle, Phase 2b) — split into separate crates if needed *(Rust C ABI done in `crates/tpt-norma-ffi`. Go bridge not built.)*
+- [ ] Intercept LLM tool calls at runtime and enforce `tpt-norma-core` *(In-process `Gate` and the FFI `admit` call. A host that skips them is not covered, per D8 and the FFI docs.)*
+- [ ] Prove the FFI boundary cannot be bypassed or corrupted by the host environment (closes threat-model assumption 5) *(Not provable as stated. The limits are recorded in `THREAT_MODEL.md`.)*
+- [x] Implement per-resource serialized validation-and-commit (mutex/actor/single-writer queue), closing threat-model assumption 2 so atomicity holds in production, not just as a caller obligation *(`SharedGate`, in-process only, D15. Concurrency test passes.)*
+- [ ] Unit tests + Rust↔Go integration tests + rustdoc + SPDX header *(Rust unit tests done. Go integration tests not built.)*
 
 ## Phase 6: Compliance Roadmap Phases 2–4 (spec §7)
 - [ ] Phase 2: map Proof Certificates to EU AI Act Article 15 (Accuracy & Robustness) and SOC2 CC6.1 (Logical Access Security)

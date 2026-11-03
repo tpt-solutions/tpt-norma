@@ -35,10 +35,12 @@ tpt-norma-core    validate_action: non-negativity, rate limit, conservative capa
 | :--- | :--- | :--- |
 | `tpt-norma-core` | Implemented | `validate_action`, the exact-rational reference `symbolic_evaluate_ideal`, and the conservative-denial f64 check |
 | `tpt-norma-eval` | Implemented | Three-valued `Decision` (`Allow` / `Deny` / `Indeterminate`), evidence binding, and fail-closed guards |
-| `tpt-norma-runtime` | Implemented | State-version freshness (`authorize`) and the commit-time executor (`StateStore::commit`) |
-| `tpt-norma-solver` | Planned | Adapter to `tpt-solver` for SMT and certificate checking |
-| `tpt-norma-audit` | Planned | Emits `tpt-concord` evidence objects for the decision lifecycle |
-| `tpt-norma-policy`, `tpt-norma-proof` | Planned | Policy DSL and proof certificates (spec §4) |
+| `tpt-norma-runtime` | Implemented | State-version freshness (`authorize`), the commit-time executor (`StateStore::commit`), the tool `Gate` (the contract for `tpt-writ`), and `SharedGate` (per-resource serialization in one process) |
+| `tpt-norma-solver` | Implemented | Certifies decisions through `tpt-solver`: a claimed `Allow` must be satisfiable with an accepted model, and a `Deny` is certified when UNSAT |
+| `tpt-norma-audit` | Implemented | Hash-chained, tamper-evident log of the decision lifecycle (internal format; `tpt-concord` is not checked out) |
+| `tpt-norma-proof` | Implemented (draft) | Certificate format pinned to source digests, and an illustrative first draft for `validate_action` |
+| `tpt-norma-policy` | Implemented | Text DSL for N-dimensional boxes and linear rules, with a consistency check through `tpt-telos-sdk`'s `check_contradictions` |
+| `tpt-norma-ffi` | Implemented (Rust side) | C ABI over the validator and shared gate, with a hand-written header. The Go bridge and the C-host compile test are not built |
 
 ### Scope
 
