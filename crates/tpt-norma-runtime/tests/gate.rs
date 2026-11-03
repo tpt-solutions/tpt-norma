@@ -3,14 +3,16 @@
 
 use std::cell::Cell;
 
+use std::time::Duration;
 use tpt_norma_audit::{verify_chain, Event};
 use tpt_norma_core::PolicyBounds;
 use tpt_norma_eval::{
     ActionId, ActionRequest, ActorId, CanonicalBytes, CoreEvaluator, ResourceId, StateVersion,
 };
-use tpt_norma_runtime::{Gate, Refusal, StateStore};
 
-fn gate(load: f64) -> Gate<CoreEvaluator> {
+use tpt_norma_runtime::{Gate, GuardedEvaluator, Refusal, StateStore};
+
+fn gate(load: f64) -> Gate<GuardedEvaluator> {
     Gate::new(
         CoreEvaluator {
             policy: PolicyBounds {
@@ -21,6 +23,7 @@ fn gate(load: f64) -> Gate<CoreEvaluator> {
             verifier_identity: "core".into(),
         },
         StateStore::new(load),
+        Duration::from_secs(1),
     )
 }
 

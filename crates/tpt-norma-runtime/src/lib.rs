@@ -10,7 +10,7 @@
 mod gate;
 mod shared;
 
-pub use gate::{Gate, Refusal};
+pub use gate::{Gate, GuardedEvaluator, Refusal};
 pub use shared::SharedGate;
 
 use tpt_norma_eval::{

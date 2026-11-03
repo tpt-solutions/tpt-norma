@@ -14,6 +14,7 @@ publish = false
 tpt-norma-audit = { workspace = true }
 tpt-norma-core = { workspace = true }
 tpt-norma-eval = { workspace = true }
+tpt-norma-solver = { workspace = true }
 
 [lints]
 workspace = true

@@ -5,13 +5,15 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 
+use std::time::Duration;
 use tpt_norma_core::PolicyBounds;
 use tpt_norma_eval::{
     ActionId, ActionRequest, ActorId, CanonicalBytes, CoreEvaluator, ResourceId, StateVersion,
 };
-use tpt_norma_runtime::{Gate, Refusal, SharedGate, StateStore};
 
-fn shared(load: f64, capacity: f64) -> SharedGate<CoreEvaluator> {
+use tpt_norma_runtime::{Gate, GuardedEvaluator, Refusal, SharedGate, StateStore};
+
+fn shared(load: f64, capacity: f64) -> SharedGate<GuardedEvaluator> {
     SharedGate::new(Gate::new(
         CoreEvaluator {
             policy: PolicyBounds {
@@ -22,6 +24,7 @@ fn shared(load: f64, capacity: f64) -> SharedGate<CoreEvaluator> {
             verifier_identity: "core".into(),
         },
         StateStore::new(load),
+        Duration::from_secs(1),
     ))
 }
 

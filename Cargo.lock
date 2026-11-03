@@ -670,6 +670,7 @@ dependencies = [
  "tpt-norma-audit",
  "tpt-norma-core",
  "tpt-norma-eval",
+ "tpt-norma-solver",
 ]
 
 [[package]]

@@ -26,12 +26,16 @@
 #![allow(unsafe_code)]
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::time::Duration;
 
 use tpt_norma_core::{check_action, ActionProposal, PolicyBounds, SystemState};
 use tpt_norma_eval::{
     ActionId, ActionRequest, ActorId, CanonicalBytes, CoreEvaluator, ResourceId, StateVersion,
 };
-use tpt_norma_runtime::{Gate, Refusal, SharedGate, StateStore};
+use tpt_norma_runtime::{Gate, GuardedEvaluator, Refusal, SharedGate, StateStore};
+
+/// Wall-clock limit on one evaluation through the FFI. The check is post-hoc (see `Guarded`).
+const FFI_DEADLINE: Duration = Duration::from_secs(1);
 
 pub const TN_ALLOW: i32 = 1;
 pub const TN_DENY: i32 = 0;
@@ -40,7 +44,7 @@ pub const TN_ERROR: i32 = -2;
 
 /// An opaque gate handle. Hosts receive a pointer to this and never look inside it.
 pub struct TnGate {
-    inner: SharedGate<CoreEvaluator>,
+    inner: SharedGate<GuardedEvaluator>,
 }
 
 fn run<F: FnOnce() -> i32>(f: F) -> i32 {
@@ -105,7 +109,7 @@ pub extern "C" fn tn_gate_new(
             policy_version: 1,
             verifier_identity: "tpt-norma-core/validate_action".to_string(),
         };
-        let gate = Gate::new(evaluator, StateStore::new(load));
+        let gate = Gate::new(evaluator, StateStore::new(load), FFI_DEADLINE);
         Box::into_raw(Box::new(TnGate {
             inner: SharedGate::new(gate),
         }))
@@ -160,7 +164,7 @@ pub unsafe extern "C" fn tn_gate_admit(
         match gate.inner.submit(&request, |_| ()) {
             Ok(()) => TN_ALLOW,
             Err(Refusal::Denied { .. }) => TN_DENY,
-            Err(Refusal::Indeterminate { .. }) | Err(Refusal::Commit(_)) => TN_INDETERMINATE,
+            Err(Refusal::Indeterminate { .. }) | Err(Refusal::Commit(_)) | Err(Refusal::Audit { .. }) => TN_INDETERMINATE,
         }
     })
 }
